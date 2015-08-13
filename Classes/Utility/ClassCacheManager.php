@@ -27,6 +27,11 @@ class ClassCacheManager
     protected $cacheInstance;
 
     /**
+     * @var array
+     */
+    protected $constructorLines = array();
+
+    /**
      * Constructor
      *
      * @return self
@@ -58,6 +63,9 @@ class ClassCacheManager
                     $extendingClassFound = true;
                     $code .= $this->parseSingleFile($path, false);
                 }
+            }
+            if (count($this->constructorLines)) {
+                $code .= LF . '    public function __construct()' . LF . '    {' . LF. implode(LF, $this->constructorLines) . LF . '    }' . LF;
             }
             $code = $this->closeClassDefinition($code);
 
@@ -94,32 +102,49 @@ class ClassCacheManager
         $code = GeneralUtility::getUrl($filePath);
 
         if ($baseClass) {
-            $closingBracket = strrpos($code, '}');
-            $content = substr($code, 0, $closingBracket);
-            $content = str_replace('<?php', '', $content);
-            return $content;
-        } else {
-            /** @var ClassParser $classParser */
-            $classParser = GeneralUtility::makeInstance(ClassParser::class);
-            $classParser->parse($filePath);
-            $classParserInformation = $classParser->getFirstClass();
-            $codeInLines = explode(LF, str_replace(CR, '', $code));
-
-            if (isset($classParserInformation['eol'])) {
-                $innerPart = array_slice($codeInLines, $classParserInformation['start'],
-                    ($classParserInformation['eol'] - $classParserInformation['start'] - 1));
-            } else {
-                $innerPart = array_slice($codeInLines, $classParserInformation['start']);
-            }
-
-            if (trim($innerPart[0]) === '{') {
-                unset($innerPart[0]);
-            }
-            $codePart = implode(LF, $innerPart);
-            $closingBracket = strrpos($codePart, '}');
-            $content = $this->getPartialInfo($filePath) . substr($codePart, 0, $closingBracket);
-            return $content;
+            $code = str_replace('<?php', '', $code);
         }
+        /** @var ClassParser $classParser */
+        $classParser = GeneralUtility::makeInstance(ClassParser::class);
+        $classParser->parse($filePath);
+        $classParserInformation = $classParser->getFirstClass();
+        $codeInLines = explode(LF, str_replace(CR, '', $code));
+        $offsetForInnerPart = 0;
+
+        if ($baseClass) {
+            $innerPart = $codeInLines;
+        } else if (isset($classParserInformation['eol'])) {
+            $offsetForInnerPart = $classParserInformation['start'];
+            $innerPart = array_slice($codeInLines, $classParserInformation['start'],
+                ($classParserInformation['eol'] - $classParserInformation['start'] - 1));
+        } else {
+            $offsetForInnerPart = $classParserInformation['start'];
+            $innerPart = array_slice($codeInLines, $classParserInformation['start']);
+        }
+
+        if (trim($innerPart[0]) === '{') {
+            unset($innerPart[0]);
+        }
+
+        // build the new constructor
+        if (isset($classParserInformation['functions']['__construct'])) {
+            $constructorInfo = $classParserInformation['functions']['__construct'];
+            for($i = $constructorInfo['start'] - $offsetForInnerPart; $i < $constructorInfo['end'] - $offsetForInnerPart; $i++) {
+                if (trim($innerPart[$i]) === '{') {
+                    unset($innerPart[$i]);
+                    continue;
+                }
+                $this->constructorLines[] = $innerPart[$i];
+                unset($innerPart[$i]);
+            }
+            unset($innerPart[$constructorInfo['start'] - $offsetForInnerPart - 1]);
+            unset($innerPart[$constructorInfo['end'] - $offsetForInnerPart]);
+        }
+
+        $codePart = implode(LF, $innerPart);
+        $closingBracket = strrpos($codePart, '}');
+        $content = $this->getPartialInfo($filePath) . substr($codePart, 0, $closingBracket);
+        return $content;
     }
 
     /**
