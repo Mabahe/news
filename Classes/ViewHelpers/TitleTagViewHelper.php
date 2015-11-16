@@ -38,8 +38,7 @@ class TitleTagViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHe
 	public function render() {
 		$content = trim($this->renderChildren());
 		if (!empty($content)) {
-			$pageRenderer = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Page\PageRenderer::class);
-			$pageRenderer->setTitle($content);
+			$GLOBALS['TSFE']->altPageTitle = $content;
 			$GLOBALS['TSFE']->indexedDocTitle = $content;
 		}
 	}
