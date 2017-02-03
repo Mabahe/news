@@ -109,6 +109,18 @@ class AdministrationController extends NewsController
         $pageRenderer = $this->view->getModuleTemplate()->getPageRenderer();
         $pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/ClickMenu');
 
+        $web_list_modTSconfig = BackendUtilityCore::getModTSconfig($this->pageUid, 'mod.web_list');
+        $this->allowedNewTables = GeneralUtility::trimExplode(
+            ',',
+            $web_list_modTSconfig['properties']['allowedNewTables'],
+            true
+        );
+        $this->deniedNewTables = GeneralUtility::trimExplode(
+            ',',
+            $web_list_modTSconfig['properties']['deniedNewTables'],
+            true
+        );
+
         $this->createMenu();
         $this->createButtons();
     }
@@ -176,9 +188,7 @@ class AdministrationController extends NewsController
             ]
         ];
         foreach ($buttons as $key => $tableConfiguration) {
-            if ($this->getBackendUser()->isAdmin() || GeneralUtility::inList($this->getBackendUser()->groupData['tables_modify'],
-                    $tableConfiguration['table'])
-            ) {
+            if ($this->showButton($tableConfiguration['table'])) {
                 $viewButton = $buttonBar->makeLinkButton()
                     ->setHref($uriBuilder->reset()->setRequest($this->request)->uriFor($tableConfiguration['action'],
                         [], 'Administration'))
@@ -201,6 +211,24 @@ class AdministrationController extends NewsController
                 ->setIcon($this->iconFactory->getIcon('actions-document-paste-into', ICON::SIZE_SMALL));
             $buttonBar->addButton($viewButton, ButtonBar::BUTTON_POSITION_LEFT, 4);
         }
+    }
+
+    /**
+     * @param string $table
+     * @return bool
+     */
+    protected function showButton($table)
+    {
+        if (!$this->getBackendUser()->check('tables_modify', $table)) {
+            return false;
+        }
+
+        // No deny/allow tables are set:
+        if (empty($this->allowedNewTables) && empty($this->deniedNewTables)) {
+            return true;
+        }
+
+        return !in_array($table, $this->deniedNewTables) && (empty($this->allowedNewTables) || in_array($table, $this->allowedNewTables));
     }
 
     /**
