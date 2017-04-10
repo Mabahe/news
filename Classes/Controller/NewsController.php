@@ -39,7 +39,7 @@ class Tx_News_Controller_NewsController extends Tx_News_Controller_NewsBaseContr
 	protected $configurationManager;
 
 	/** @var array */
-	protected $ignoredSettingsForOverride = array('demandClass', 'orderByAllowed');
+	protected $ignoredSettingsForOverride = ['demandclass', 'orderbyallowed'];
 
 	/**
 	 * Inject a news repository to enable DI
@@ -139,6 +139,9 @@ class Tx_News_Controller_NewsController extends Tx_News_Controller_NewsBaseContr
 		}
 
 		foreach ($overwriteDemand as $propertyName => $propertyValue) {
+			if(in_array(strtolower($propertyName), $this->ignoredSettingsForOverride, true)) {
+				continue;
+			}
 			\TYPO3\CMS\Extbase\Reflection\ObjectAccess::setProperty($demand, $propertyName, $propertyValue);
 		}
 		return $demand;
